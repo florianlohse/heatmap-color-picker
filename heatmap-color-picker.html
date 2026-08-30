@@ -1,0 +1,665 @@
+<title>Heatmap Ramp Studio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<style>
+  :root{
+    --paper:#faf7f0;
+    --card:#ffffff;
+    --sunken:#f3efe4;
+    --ink:#1d1f23;
+    --ink-soft:#5c5850;
+    --ink-faint:#8f8a7d;
+    --line:#e6e0d2;
+    --line-strong:#d4cdb9;
+    --accent:#0f7d73;
+    --accent-ink:#0a5952;
+    --accent-wash:#e2efec;
+    --shadow:0 1px 2px rgba(40,36,25,.06),0 8px 24px rgba(40,36,25,.06);
+    --radius:10px;
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --paper:#15161a; --card:#1c1e23; --sunken:#111216;
+      --ink:#ece9e1; --ink-soft:#a9a498; --ink-faint:#7c776a;
+      --line:#2c2f36; --line-strong:#3a3e46;
+      --accent:#4fd1c2; --accent-ink:#8fe6db; --accent-wash:#17322f;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#15161a; --card:#1c1e23; --sunken:#111216;
+    --ink:#ece9e1; --ink-soft:#a9a498; --ink-faint:#7c776a;
+    --line:#2c2f36; --line-strong:#3a3e46;
+    --accent:#4fd1c2; --accent-ink:#8fe6db; --accent-wash:#17322f;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:clamp(20px,4vw,52px) clamp(16px,4vw,40px) 80px}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 10px}
+  h1{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:clamp(1.8rem,4.5vw,2.7rem);line-height:1.1;margin:0 0 12px;text-wrap:balance}
+  header p{margin:0;max-width:62ch;color:var(--ink-soft);font-size:.98rem}
+
+  h2{font-family:"IBM Plex Serif",Georgia,serif;font-weight:500;font-size:1.15rem;margin:0 0 4px}
+  .section{margin-top:34px}
+  .section > .hint{margin:0 0 16px;color:var(--ink-faint);font-size:.86rem;max-width:60ch}
+
+  /* two-pane studio: controls on the left, live preview pinned alongside */
+  .studio{display:grid;gap:22px;grid-template-columns:1fr;margin-top:26px;
+    grid-template-areas:"pick" "prev" "sys" "tune"}
+  .s-pick{grid-area:pick}.s-prev{grid-area:prev}.s-sys{grid-area:sys}.s-tune{grid-area:tune}
+  .s-pick h2,.s-sys h2,.s-tune h2{margin-bottom:2px}
+  .s-pick .hint,.s-sys .hint,.s-tune .hint{margin:4px 0 12px}
+  .s-prev{position:sticky;top:10px;z-index:6;align-self:start;
+    max-height:64vh;overflow:auto;
+    background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;box-shadow:var(--shadow)}
+  .s-prev h2{font-size:.95rem;margin-bottom:10px}
+  @media (min-width:980px){
+    .studio{gap:26px 30px;grid-template-columns:minmax(0,1fr) minmax(400px,440px);
+      grid-template-areas:"pick prev" "sys prev" "tune prev"}
+    .s-prev{max-height:calc(100vh - 20px)}
+  }
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px clamp(16px,3vw,24px);box-shadow:var(--shadow)}
+  .sub{font-size:.72rem;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-faint);font-weight:600;margin:0 0 14px}
+  .panel hr{border:none;border-top:1px solid var(--line);margin:24px -24px 22px}
+
+  /* starting-point picker */
+  .picker{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .picker .stage{display:flex;flex-direction:column;gap:8px;flex:1 1 240px;min-width:0;max-width:320px}
+  #sv{border-radius:8px;border:1px solid var(--line-strong);cursor:crosshair;touch-action:none;display:block;width:100%;height:auto}
+  #hue{border-radius:6px;border:1px solid var(--line-strong);cursor:pointer;touch-action:none;display:block;width:100%;height:16px}
+  #sv:focus-visible,#hue:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .readout{display:flex;flex-direction:column;gap:10px;font-family:"IBM Plex Mono",monospace;font-size:.8rem}
+  .readout .chip{display:flex;align-items:center;gap:10px}
+  .readout .sw{width:46px;height:46px;border-radius:8px;border:1px solid var(--line-strong);flex:none}
+  .readout .kv{color:var(--ink-faint)}
+  .readout .kv b{color:var(--ink);font-weight:500}
+  .readout .hexbtn{font:inherit;font-family:"IBM Plex Mono",monospace;font-size:.8rem;background:var(--sunken);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--ink);cursor:pointer}
+
+  .grid{display:grid;gap:16px 26px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field > label{font-size:.72rem;text-transform:uppercase;letter-spacing:.13em;color:var(--ink-faint);font-weight:600}
+  .field .val{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--ink-soft);float:right;letter-spacing:0;text-transform:none}
+  select{font:inherit;font-size:.9rem;color:var(--ink);background:var(--paper);border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;width:100%}
+  select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  input[type="range"]{width:100%;accent-color:var(--accent);height:22px}
+  input[type="color"]{-webkit-appearance:none;appearance:none;width:100%;height:34px;padding:0;border:1px solid var(--line-strong);border-radius:7px;background:none;cursor:pointer}
+  input[type="color"]::-webkit-color-swatch-wrapper{padding:3px}
+  input[type="color"]::-webkit-color-swatch{border:none;border-radius:4px}
+
+  .blurb{margin-top:16px;padding:14px 16px;background:var(--accent-wash);border-radius:8px;font-size:.86rem;line-height:1.5;color:var(--ink)}
+  .blurb b{color:var(--accent-ink)}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:18px;font-size:.82rem;color:var(--ink-soft)}
+  .toolbar label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  .btn{font:inherit;font-size:.82rem;font-weight:500;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--line-strong);border-radius:7px;padding:7px 13px;transition:.13s}
+  .btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  :root[data-theme="dark"] .btn.primary,:root:not([data-theme="light"]) .btn.primary{color:#0c1412}
+
+  /* heatmap preview */
+  .previews{display:flex;flex-direction:column;gap:12px}
+  .hm{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:11px 12px 10px}
+  .hm-title{font-weight:600;font-size:.86rem;margin-bottom:1px}
+  .hm-year{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--ink-faint);margin-bottom:6px}
+  .hm-scroll{overflow-x:auto;padding-bottom:5px}
+  .hm-svg{display:block}
+  .hm-mo{fill:var(--ink-faint);font-family:"IBM Plex Sans",sans-serif;font-size:8px}
+  .hm-dow{fill:var(--ink-faint);font-family:"IBM Plex Sans",sans-serif;font-size:7px}
+  .hm-bar{height:6px;border-radius:4px;background:var(--sunken);margin-top:1px}
+  .hm-legend{display:flex;align-items:center;gap:4px;font-size:.68rem;color:var(--ink-faint);margin-top:7px;font-family:"IBM Plex Mono",monospace}
+  .hm-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .pv-start{display:flex;align-items:center;gap:8px;font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--ink-faint);margin-bottom:10px}
+  .pv-start i{width:16px;height:16px;border-radius:3px;border:1px solid var(--line-strong);display:inline-block}
+
+  /* output rows */
+  .out{display:flex;flex-direction:column;gap:18px}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+  .row .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .row .head .t{font-weight:600;font-size:.9rem}
+  .row .head .t em{font-style:normal;color:var(--ink-faint);font-weight:400;font-family:"IBM Plex Mono",monospace;font-size:.75rem;margin-left:8px}
+  .strip{display:flex;border-radius:7px;overflow:hidden;border:1px solid var(--line-strong)}
+  .strip .cell{flex:1;height:52px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
+  .strip .cell code{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:-.02em;opacity:0;transition:opacity .12s}
+  .strip .cell:hover code{opacity:.92}
+  .codeline{font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.7;background:var(--sunken);border:1px solid var(--line);border-radius:7px;padding:9px 12px;overflow-x:auto;white-space:nowrap;color:var(--ink-soft);margin-top:10px}
+  .row .acts{display:flex;gap:8px;margin-top:10px}
+
+  .combined{margin-top:24px}
+  .combined h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.13em;color:var(--ink-faint);margin:18px 0 8px}
+  .combined .codeline{white-space:pre;margin:0 0 10px;color:var(--ink)}
+  .emptyline{display:flex;align-items:center;gap:10px;margin-top:16px;font-family:"IBM Plex Mono",monospace;font-size:.82rem;color:var(--ink-soft)}
+  .emptyline i{width:16px;height:16px;border-radius:3px;border:1px solid var(--line-strong);display:inline-block}
+
+  footer{margin-top:52px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:.8rem;max-width:70ch}
+  footer code{font-family:"IBM Plex Mono",monospace;background:var(--sunken);padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:8px;font-size:.85rem;font-weight:500;opacity:0;pointer-events:none;transition:.2s;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .themebtn{position:absolute;top:16px;right:16px;background:none;border:1px solid var(--line-strong);color:var(--ink-soft);border-radius:7px;padding:5px 9px;font-size:.75rem;cursor:pointer}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<button class="themebtn" id="themebtn" aria-label="Toggle light or dark theme">◐ theme</button>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">obsidian heatmap color scales</p>
+    <h1>Heatmap Ramp Studio</h1>
+    <p>Pick one starting color. The studio derives a <strong>set of matching five-step ramps</strong> from it &mdash; as many as you need, using a color-harmony or color-space system you choose &mdash; and previews them as Obsidian year-heatmaps. Copy each ramp as a quoted row, forward or reversed.</p>
+  </header>
+
+  <div class="studio">
+
+    <div class="s-pick">
+      <h2>1 &nbsp;Starting point</h2>
+      <p class="hint">Drag the field for saturation &amp; brightness of the darkest (level&nbsp;5) color; the strip sets hue. Everything else derives from this.</p>
+      <div class="panel">
+        <div class="picker">
+          <div class="stage">
+            <canvas id="sv" width="300" height="176" tabindex="0" aria-label="Saturation and brightness field"></canvas>
+            <canvas id="hue" width="300" height="16" tabindex="0" aria-label="Hue strip"></canvas>
+          </div>
+          <div class="readout">
+            <div class="chip">
+              <span class="sw" id="pkSw"></span>
+              <button class="hexbtn" id="pkHex" type="button" title="Copy starting hex">#000000</button>
+            </div>
+            <span class="kv">hue&nbsp;&nbsp;<b id="pkH">0</b>&deg;</span>
+            <span class="kv">chroma&nbsp;&nbsp;<b id="pkC">0.00</b></span>
+            <span class="kv">lightness&nbsp;&nbsp;<b id="pkL">0.00</b></span>
+            <span class="kv" style="color:var(--ink-faint);font-size:.72rem">OKLCH derived</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="s-prev">
+      <h2>Live preview &mdash; a year in Obsidian</h2>
+      <div class="pv-start"><i id="pvStart"></i><span id="pvStartHex">#000000</span> &nbsp;starting point</div>
+      <div class="previews" id="previews"></div>
+    </aside>
+
+    <div class="s-sys">
+      <h2>2 &nbsp;How the ramps relate</h2>
+      <div class="panel">
+        <div class="grid">
+          <div class="field">
+            <label for="count">Heatmaps <span class="val" id="countVal"></span></label>
+            <input type="range" id="count" min="1" max="8" value="3">
+          </div>
+          <div class="field">
+            <label for="system">Color system</label>
+            <select id="system"></select>
+          </div>
+          <div class="field">
+            <label for="drift">Hue drift &rarr; yellow <span class="val" id="driftVal"></span></label>
+            <input type="range" id="drift" min="-40" max="40" value="-14">
+          </div>
+          <div class="field">
+            <label for="curve">Chroma curve</label>
+            <select id="curve">
+              <option value="bell">Bell &mdash; fullest in the mid-tones</option>
+              <option value="down">Falling &mdash; strongest at the dark end</option>
+              <option value="flat">Flat &mdash; constant saturation</option>
+            </select>
+          </div>
+        </div>
+        <div class="blurb" id="blurb"></div>
+        <div class="toolbar">
+          <button class="btn" id="resetBtn" type="button">Reset system defaults</button>
+          <label><input type="checkbox" id="optSpace"> space after comma</label>
+          <label><input type="checkbox" id="optBracket"> wrap in [ ]</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-tune">
+      <h2>3 &nbsp;Heatmap tuning</h2>
+      <p class="hint">These reshape the gradient for every set at once &mdash; how the colors actually land on a year of cells.</p>
+      <div class="panel">
+        <div class="grid">
+          <div class="field">
+            <label for="levels">Intensity levels <span class="val" id="levelsVal"></span></label>
+            <input type="range" id="levels" min="3" max="8" value="5">
+          </div>
+          <div class="field">
+            <label for="lmax">Lightest step <span class="val" id="lmaxVal"></span></label>
+            <input type="range" id="lmax" min="78" max="97" value="89">
+          </div>
+          <div class="field">
+            <label for="gamma">Step spacing <span class="val" id="gammaVal"></span></label>
+            <input type="range" id="gamma" min="50" max="220" value="100">
+          </div>
+          <div class="field">
+            <label for="empty">Empty-cell color</label>
+            <input type="color" id="empty" value="#e8e8f2">
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <section class="section">
+    <h2>The ramps</h2>
+    <div class="out" id="out"></div>
+    <div class="combined">
+      <h3>All ramps &mdash; forward (darkest &rarr; lightest)</h3>
+      <div class="codeline" id="allFwd"></div>
+      <button class="btn primary" id="copyFwd" type="button">Copy forward block</button>
+      <h3>All ramps &mdash; reversed (lightest &rarr; darkest)</h3>
+      <div class="codeline" id="allRev"></div>
+      <button class="btn primary" id="copyRev" type="button">Copy reversed block</button>
+      <div class="emptyline">
+        <i id="emptySwatch"></i>
+        <span>empty cell&nbsp; <span id="emptyHex">#e8e8f2</span></span>
+        <button class="btn" id="copyEmpty" type="button">Copy</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Ramps are computed in <code>OKLCH</code> and clipped into sRGB by reducing chroma, so the sets stay perceptually parallel. The HSL and Cubehelix systems use their own native math. Preview activity is randomly generated and purely illustrative. Everything runs locally in this file &mdash; nothing is uploaded.
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const clamp01 = x => x < 0 ? 0 : x > 1 ? 1 : x;
+const $ = s => document.querySelector(s);
+const el = (t,c) => { const e=document.createElement(t); if(c) e.className=c; return e; };
+
+/* ---------- color math ---------- */
+function srgb2lin(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);}
+function lin2srgb(c){c=clamp01(c);return c<=0.0031308?12.92*c:1.055*Math.pow(c,1/2.4)-0.055;}
+function oklchToLinRgb(L,C,h){
+  const hr=h*Math.PI/180, a=C*Math.cos(hr), b=C*Math.sin(hr);
+  const l_=L+0.3963377774*a+0.2158037573*b;
+  const m_=L-0.1055613458*a-0.0638541728*b;
+  const s_=L-0.0894841775*a-1.2914855480*b;
+  const l=l_*l_*l_, m=m_*m_*m_, s=s_*s_*s_;
+  return [ 4.0767416621*l-3.3077115913*m+0.2309699292*s,
+          -1.2684380046*l+2.6097574011*m-0.3413193965*s,
+          -0.0041960863*l-0.7034186147*m+1.7076147010*s ];
+}
+const inGamut = rgb => rgb.every(v => v >= -0.0006 && v <= 1.0006);
+function oklchToHex(L,C,h){
+  if(!inGamut(oklchToLinRgb(L,C,h))){
+    let lo=0,hi=C;
+    for(let i=0;i<22;i++){const mid=(lo+hi)/2;inGamut(oklchToLinRgb(L,mid,h))?lo=mid:hi=mid;}
+    C=lo;
+  }
+  return rgbToHex(oklchToLinRgb(L,C,h).map(lin2srgb));
+}
+function rgbToHex(rgb){return '#'+rgb.map(v=>Math.round(clamp01(v)*255).toString(16).padStart(2,'0')).join('');}
+function hexToRgb(hex){const n=parseInt(hex.slice(1),16);return [n>>16&255,n>>8&255,n&255];}
+function rgbToOklch(r,g,b){
+  r=srgb2lin(r);g=srgb2lin(g);b=srgb2lin(b);
+  const l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b);
+  const m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b);
+  const s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
+  const L=0.2104542553*l+0.7936177850*m-0.0040720468*s;
+  const A=1.9779984951*l-2.4285922050*m+0.4505937099*s;
+  const B=0.0259040371*l+0.7827717662*m-0.8086757660*s;
+  return [L,Math.hypot(A,B),(Math.atan2(B,A)*180/Math.PI+360)%360];
+}
+function hslToHex(h,s,l){
+  h=((h%360)+360)%360;s=clamp01(s);l=clamp01(l);
+  const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
+  let r,g,b;
+  if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];
+  else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];
+  return rgbToHex([r+m,g+m,b+m]);
+}
+function hsvToRgb(h,s,v){
+  h=(((h%360)+360)%360)/60;
+  const c=v*s, x=c*(1-Math.abs(h%2-1)), m=v-c;
+  let r,g,b;
+  if(h<1)[r,g,b]=[c,x,0];else if(h<2)[r,g,b]=[x,c,0];else if(h<3)[r,g,b]=[0,c,x];
+  else if(h<4)[r,g,b]=[0,x,c];else if(h<5)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];
+  return [(r+m)*255,(g+m)*255,(b+m)*255];
+}
+function cubehelixHex(t,start,rots,hue,gamma){
+  const angle=2*Math.PI*(start/3+1+rots*t);
+  const tg=Math.pow(t,gamma), amp=hue*tg*(1-tg)/2, ca=Math.cos(angle), sa=Math.sin(angle);
+  return rgbToHex([ tg+amp*(-0.14861*ca+1.78277*sa),
+                    tg+amp*(-0.29227*ca-0.90649*sa),
+                    tg+amp*(1.97294*ca) ]);
+}
+function luminance(hex){const [r,g,b]=hexToRgb(hex).map(srgb2lin);return 0.2126*r+0.7152*g+0.0722*b;}
+
+/* ---------- curves & step positions ---------- */
+const CURVES = {
+  flat:()=>1,
+  down:t=>1-0.55*t,
+  bell:t=>0.78+0.22*Math.sin(Math.PI*(0.12+0.8*t))
+};
+// n step positions 0..1, reshaped by gamma (step spacing)
+function tvals(n,gamma){const a=[];for(let i=0;i<n;i++)a.push(Math.pow(i/(n-1),gamma));return a;}
+
+/* ---------- ramp engines ---------- */
+// p: {L,C, lmax, drift, curve, n, gamma}
+function rampOklch(hue,p){
+  const cf=CURVES[p.curve]||CURVES.bell;
+  return tvals(p.n,p.gamma).map(t=>oklchToHex(p.L+(p.lmax-p.L)*t, p.C*cf(t), hue+p.drift*t));
+}
+function rampHsl(hue,p){
+  const s=clamp01(Math.min(0.97,0.42+p.C*3));
+  return tvals(p.n,p.gamma).map(t=>hslToHex(hue+p.drift*t*0.9, s, clamp01((p.L+0.02)+(p.lmax-p.L)*t)));
+}
+function rampCubehelix(hue,p){
+  const start=hue/120, lo=Math.min(p.L,0.22), hi=Math.max(p.lmax,0.90);
+  return tvals(p.n,p.gamma).map(t=>cubehelixHex(lo+(hi-lo)*t, start, -1.3, 0.7+p.C*5, 1));
+}
+
+/* ---------- systems ---------- */
+const range = n => Array.from({length:Math.max(1,n)},(_,i)=>i);
+const evenHues = (h,n) => range(n).map(i=>h + i*360/Math.max(1,n));
+
+const SYSTEMS = [
+  { id:'triadic', name:'Evenly spaced (triadic)', engine:'oklch',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:-12,curve:'bell'},
+    text:`Hues spread at <b>equal angles</b> around the color wheel &mdash; 120&deg; apart for three (the classic art-school triad), proportionally tighter for more. Every heatmap carries equal visual weight and stays maximally distinct. A safe, lively default when the panels are peers.` },
+  { id:'analogous', name:'Analogous', engine:'oklch',
+    hues:(h,n)=>range(n).map(i=>h+(i-(n-1)/2)*Math.min(38,120/Math.max(1,n))),
+    def:{drift:-10,curve:'bell'},
+    text:`<b>Neighboring hues</b> packed into a narrow arc. Calm and cohesive with low contrast between panels &mdash; use it when the heatmaps belong to one family and shouldn't compete for attention.` },
+  { id:'split', name:'Split-complementary', engine:'oklch',
+    hues:(h,n)=>n<2?[h]:[h,...range(n-1).map(i=>h+180+(i-(n-2)/2)*Math.min(46,150/(n-1)))],
+    def:{drift:-12,curve:'bell'},
+    text:`A base hue plus a fan of hues around <b>its opposite</b>. Keeps the punch of a complementary contrast but softens the head-on clash, so the panels stay comfortable stacked together.` },
+  { id:'tetradic', name:'Tetradic (rectangle)', engine:'oklch',
+    hues:(h,n)=>range(n).map(i=>h+[0,90,180,270][i%4]+Math.floor(i/4)*40),
+    def:{drift:-12,curve:'bell'},
+    text:`Corners of a <b>rectangle on the wheel</b> &mdash; two complementary pairs. Rich and varied; works best when one heatmap is clearly primary and the others support it.` },
+  { id:'golden', name:'Golden-angle (137.5&deg;)', engine:'oklch',
+    hues:(h,n)=>range(n).map(i=>h+i*137.507),
+    def:{drift:-10,curve:'bell'},
+    text:`Hues stepped by the <b>golden angle</b>, the spacing a sunflower packs its seeds with. For any count it spreads them about as evenly as possible &mdash; the standard trick in generative palettes and D3's categorical schemes.` },
+  { id:'oklch-even', name:'Perceptually even (OKLCH)', engine:'oklch',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:0,curve:'flat'},
+    text:`Evenly spaced hues, and every ramp built on <b>equal steps of perceptual lightness</b> with flat chroma. Level 3 of one heatmap reads exactly as intense as level 3 of the others &mdash; the honest choice when the panels are compared directly.` },
+  { id:'brewer', name:'ColorBrewer sequential', engine:'oklch',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:-30,curve:'down'},
+    text:`Each ramp is <b>multi-hue</b>: dark and saturated at the top, sliding toward a lighter, yellower, softer tint &mdash; exactly how Cynthia Brewer's sequential map scales are built. Strong separation at the quiet end, where most heatmap days live.` },
+  { id:'cubehelix', name:'Cubehelix', engine:'cubehelix',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:0,curve:'flat'},
+    text:`Dave Green's scheme: lightness rises <b>monotonically</b> while hue spirals through the wheel, so each ramp still reads correctly in grayscale or for color-vision deficiency. Long popular in astronomy imaging.` },
+  { id:'material', name:'Material tonal', engine:'oklch',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:-6,curve:'bell'},
+    text:`Google's tonal-palette recipe: a <b>fixed hue</b> per ramp with chroma peaking in the mid-tones and lightness at set tone values. Sits naturally next to Material / Android UI surfaces &mdash; and Obsidian's default look.` },
+  { id:'hsl', name:'HSL "classic web"', engine:'hsl',
+    hues:(h,n)=>evenHues(h,n),
+    def:{drift:0,curve:'flat'},
+    text:`The naive approach: <b>constant hue and saturation</b>, equal steps of HSL lightness &mdash; what most hand-built CSS palettes do. Perceptually a little uneven (blues go dark, yellows blow out) but universally understood and easy to hand-tweak.` },
+  { id:'warmcool', name:'Warm / cool split', engine:'oklch',
+    hues:(h,n)=>range(n).map(i=>{const half=Math.ceil(n/2);return i<half ? h+i*16 : h+180+(i-half)*16;}),
+    chromaMulAt:(i,n)=>i===n-1&&n>2?0.45:1,
+    def:{drift:-14,curve:'bell'},
+    text:`The first half of the heatmaps sit around a <b>warm</b> anchor, the rest around its <b>cool</b> opposite, with the last ramp pulled toward neutral. Editorial and calm &mdash; good when some panels are "hot / bad" and others "cool / good".` },
+  { id:'mono', name:'Monochromatic', engine:'oklch',
+    hues:(h,n)=>Array(Math.max(1,n)).fill(h),
+    chromaMulAt:(i,n)=>n<2?1:0.5+(i/(n-1))*1.05,
+    def:{drift:-10,curve:'bell'},
+    text:`<b>One hue, rising saturation</b> &mdash; muted through vivid. Use it when the heatmaps are the same measure at different scopes (this week / this month / all time) and hue would only add noise.` }
+];
+
+/* ---------- state ---------- */
+// starting point held as HSV (familiar picker); OKLCH is derived for all math
+const base = { h:134, s:0.74, v:0.38 };       // ~ #196127
+let der = { L:0.44, C:0.11, H:147, hex:'#196127' };
+function deriveBase(){
+  const [r,g,b]=hsvToRgb(base.h,base.s,base.v);
+  const [L,C,H]=rgbToOklch(r,g,b);
+  der={ L, C, H, hex:rgbToHex([r,g,b].map(v=>v/255)) };
+}
+
+/* ---------- picker ---------- */
+const sv = $('#sv'), svc = sv.getContext('2d');
+const hueEl = $('#hue'), hc = hueEl.getContext('2d');
+
+function paintHue(){
+  const w=hueEl.width,h=hueEl.height;
+  for(let x=0;x<w;x++){ const [r,g,b]=hsvToRgb(x/w*360,1,1); hc.fillStyle=rgbToHex([r/255,g/255,b/255]); hc.fillRect(x,0,1,h); }
+  const mx=base.h/360*w;
+  hc.strokeStyle='#fff';hc.lineWidth=3;hc.strokeRect(mx-2,0,4,h);
+  hc.strokeStyle='#000';hc.lineWidth=1;hc.strokeRect(mx-2,0,4,h);
+}
+function paintSV(){
+  const w=sv.width,h=sv.height, step=2;
+  for(let y=0;y<h;y+=step){
+    const v=1-y/(h-1);
+    for(let x=0;x<w;x+=step){
+      const [r,g,b]=hsvToRgb(base.h, x/(w-1), v);
+      svc.fillStyle=rgbToHex([r/255,g/255,b/255]);
+      svc.fillRect(x,y,step,step);
+    }
+  }
+  const mx=base.s*w, my=(1-base.v)*h;
+  svc.beginPath();svc.arc(mx,my,7,0,7);svc.strokeStyle='#fff';svc.lineWidth=3;svc.stroke();
+  svc.beginPath();svc.arc(mx,my,7,0,7);svc.strokeStyle='#000';svc.lineWidth=1.5;svc.stroke();
+}
+function pickFromSV(ev){
+  const r=sv.getBoundingClientRect();
+  base.s = clamp01((ev.clientX-r.left)/r.width);
+  base.v = clamp01(1-(ev.clientY-r.top)/r.height);
+  render();
+}
+function pickFromHue(ev){
+  const r=hueEl.getBoundingClientRect();
+  base.h = clamp01((ev.clientX-r.left)/r.width)*359.999;
+  render();
+}
+function drag(elm,fn){
+  const down=e=>{e.preventDefault();fn(e.touches?e.touches[0]:e);
+    const mv=ev=>fn(ev.touches?ev.touches[0]:ev);
+    const up=()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);};
+    window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);};
+  elm.addEventListener('pointerdown',down);
+}
+drag(sv,pickFromSV); drag(hueEl,pickFromHue);
+sv.addEventListener('keydown',e=>{
+  const d=e.shiftKey?0.05:0.015;
+  if(e.key==='ArrowLeft')base.s=clamp01(base.s-d);
+  else if(e.key==='ArrowRight')base.s=clamp01(base.s+d);
+  else if(e.key==='ArrowUp')base.v=clamp01(base.v+d);
+  else if(e.key==='ArrowDown')base.v=clamp01(base.v-d);
+  else return;
+  e.preventDefault();render();
+});
+hueEl.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'){base.h=(base.h-2+360)%360;e.preventDefault();render();}
+  else if(e.key==='ArrowRight'){base.h=(base.h+2)%360;e.preventDefault();render();}
+});
+
+/* ---------- controls ---------- */
+const sysSel=$('#system');
+SYSTEMS.forEach(s=>{const o=el('option');o.value=s.id;o.textContent=s.name;sysSel.appendChild(o);});
+const I={count:$('#count'),drift:$('#drift'),curve:$('#curve'),levels:$('#levels'),lmax:$('#lmax'),gamma:$('#gamma'),empty:$('#empty'),optSpace:$('#optSpace'),optBracket:$('#optBracket')};
+function sys(){return SYSTEMS.find(s=>s.id===sysSel.value)||SYSTEMS[0];}
+function applyDefaults(){const d=sys().def;if('drift'in d)I.drift.value=d.drift;if('curve'in d)I.curve.value=d.curve;}
+sysSel.addEventListener('change',()=>{applyDefaults();render();});
+$('#resetBtn').addEventListener('click',()=>{applyDefaults();render();});
+['count','drift','curve','levels','lmax','gamma','empty','optSpace','optBracket'].forEach(id=>$('#'+id).addEventListener('input',render));
+
+/* ---------- build ramps ---------- */
+function params(){
+  return { L:der.L, C:der.C,
+    lmax:Math.max(+I.lmax.value/100, der.L+0.05),
+    drift:+I.drift.value,
+    curve:I.curve.value,
+    n:+I.levels.value,
+    count:+I.count.value,
+    gamma:+I.gamma.value/100 };
+}
+function buildRamp(system,hue,p,idx,count){
+  const q=Object.assign({},p);
+  if(system.chromaMulAt) q.C=p.C*system.chromaMulAt(idx,count);
+  if(system.engine==='hsl')       return rampHsl(hue,q);
+  if(system.engine==='cubehelix') return rampCubehelix(hue,q);
+  return rampOklch(hue,q);
+}
+function fmt(arr){
+  const q=arr.map(h=>`"${h}"`).join(I.optSpace.checked?', ':',');
+  return I.optBracket.checked?`[${q}]`:q;
+}
+
+/* ---------- heatmap preview ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function genYear(seed,density){
+  const r=mulberry32(seed), cells=[];
+  for(let c=0;c<53;c++){
+    const season=0.35+0.65*Math.max(0,Math.sin((c/53)*Math.PI*1.5-0.5));
+    for(let row=0;row<7;row++){
+      const wk=(row>=1&&row<=5)?1:0.45;
+      let v=0;
+      if(r()<density*season*wk) v=clamp01(Math.pow(r(),1.7)*1.25*season+0.1);
+      cells.push(v);
+    }
+  }
+  return cells;
+}
+// deterministic sample activity per heatmap index — varied density so panels look distinct
+function seriesCells(i){
+  const density=clamp01(0.84 - i*0.11);
+  return genYear(1013 + i*99991, Math.max(0.1, density));
+}
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function heatmapSVG(cells,ramp,empty){
+  const L=ramp.length, cw=8, ch=8, g=2, x0=22, y0=14;
+  let cellsSVG='',lab='';
+  MONTHS.forEach((m,i)=>{ lab+=`<text class="hm-mo" x="${x0+(i*53/12)*(cw+g)}" y="10">${m}</text>`; });
+  ['M','W','F'].forEach((d,i)=>{ lab+=`<text class="hm-dow" x="2" y="${y0+(1+i*2)*(ch+g)+7}">${d}</text>`; });
+  for(let c=0;c<53;c++)for(let row=0;row<7;row++){
+    const v=cells[c*7+row];
+    const lvl=v<=0?0:Math.max(1,Math.min(L,Math.ceil(v*L)));
+    cellsSVG+=`<rect x="${x0+c*(cw+g)}" y="${y0+row*(ch+g)}" width="${cw}" height="${ch}" rx="2" fill="${lvl===0?empty:ramp[lvl-1]}"/>`;
+  }
+  const w=x0+53*(cw+g)+4, h=y0+7*(ch+g)+4;
+  return `<svg class="hm-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="year heatmap preview">${lab}${cellsSVG}</svg>`;
+}
+
+/* ---------- render ---------- */
+let rows=[];
+function render(){
+  base.h=((base.h%360)+360)%360;
+  base.s=clamp01(base.s); base.v=clamp01(base.v);
+  deriveBase();
+  const system=sys(), p=params();
+
+  // picker
+  paintSV(); paintHue();
+  $('#pkSw').style.background=der.hex;
+  $('#pkHex').textContent=der.hex;
+  $('#pkH').textContent=Math.round(der.H);
+  $('#pkC').textContent=der.C.toFixed(3);
+  $('#pkL').textContent=der.L.toFixed(2);
+  $('#pvStart').style.background=der.hex;
+  $('#pvStartHex').textContent=der.hex;
+
+  // blurb + readouts
+  $('#blurb').innerHTML=`<b>${system.name}.</b> ${system.text}`;
+  $('#countVal').textContent=p.count;
+  $('#driftVal').textContent=(p.drift>0?'+':'')+p.drift+'°';
+  $('#levelsVal').textContent=p.n;
+  $('#lmaxVal').textContent=I.lmax.value+'%';
+  $('#gammaVal').textContent=p.gamma===1?'linear':p.gamma.toFixed(2)+(p.gamma<1?' · more low':' · more high');
+
+  const empty=I.empty.value;
+  $('#emptySwatch').style.background=empty;
+  $('#emptyHex').textContent=empty;
+
+  // ramps
+  const hs=system.hues(der.H,p.count).map(h=>((h%360)+360)%360);
+  rows=hs.map((h,i)=>({
+    label:'Heatmap '+(i+1),
+    sub:system.name+' · hue '+Math.round(h)+'°',
+    colors:buildRamp(system,h,p,i,p.count)
+  }));
+
+  // previews
+  const pv=$('#previews'); pv.innerHTML='';
+  rows.forEach((r,i)=>{
+    const cells=seriesCells(i);
+    const card=el('div','hm');
+    let leg='<div class="hm-legend"><span>less</span>';
+    leg+=`<i style="background:${empty}"></i>`;
+    r.colors.forEach(c=>leg+=`<i style="background:${c}"></i>`);
+    leg+='<span>more</span></div>';
+    card.innerHTML=`<div class="hm-title">${r.label}</div><div class="hm-year">2026 · ${system.name}</div>`+
+      `<div class="hm-scroll">${heatmapSVG(cells,r.colors,empty)}</div><div class="hm-bar"></div>${leg}`;
+    pv.appendChild(card);
+  });
+
+  // output rows
+  const out=$('#out'); out.innerHTML='';
+  rows.forEach(r=>{
+    const row=el('div','row');
+    row.appendChild(Object.assign(el('div','head'),{innerHTML:`<div class="t">${r.label}<em>${r.sub}</em></div>`}));
+    const strip=el('div','strip');
+    r.colors.forEach(hex=>{
+      const cell=el('div','cell'); cell.style.background=hex;
+      const code=el('code'); code.textContent=hex;
+      code.style.color=luminance(hex)>0.45?'rgba(0,0,0,.75)':'rgba(255,255,255,.92)';
+      cell.appendChild(code); strip.appendChild(cell);
+    });
+    row.appendChild(strip);
+    row.appendChild(Object.assign(el('div','codeline'),{textContent:fmt(r.colors)}));
+    const acts=el('div','acts');
+    const b1=el('button','btn');b1.type='button';b1.textContent='Copy';
+    b1.onclick=()=>copy(fmt(r.colors),r.label+' copied');
+    const b2=el('button','btn');b2.type='button';b2.textContent='Copy reversed';
+    b2.onclick=()=>copy(fmt(r.colors.slice().reverse()),r.label+' copied (reversed)');
+    acts.append(b1,b2); row.appendChild(acts);
+    out.appendChild(row);
+  });
+
+  $('#allFwd').textContent=rows.map(r=>fmt(r.colors)).join('\n');
+  $('#allRev').textContent=rows.map(r=>fmt(r.colors.slice().reverse())).join('\n');
+}
+
+/* ---------- copy / toast ---------- */
+let tT;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),1600);}
+function copy(text,m){
+  navigator.clipboard.writeText(text).then(()=>toast(m||'Copied')).catch(()=>{
+    const ta=el('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');toast(m||'Copied');}catch(e){toast('Copy failed');}
+    ta.remove();
+  });
+}
+$('#copyFwd').onclick=()=>copy($('#allFwd').textContent,'Forward block copied');
+$('#copyRev').onclick=()=>copy($('#allRev').textContent,'Reversed block copied');
+$('#copyEmpty').onclick=()=>copy(`"${I.empty.value}"`,'Empty-cell color copied');
+$('#pkHex').onclick=()=>copy(`"${$('#pkHex').textContent}"`,'Starting color copied');
+
+$('#themebtn').onclick=()=>{
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next=cur==='dark'?'light':cur==='light'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+  document.documentElement.setAttribute('data-theme',next);
+};
+
+render();
+</script>
